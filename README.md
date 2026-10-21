@@ -1,5 +1,6 @@
 # 网易云随机热评
 
+[![Release](https://github.com/ZypherChan/MusicComments/actions/workflows/release.yml/badge.svg)](https://github.com/ZypherChan/MusicComments/actions/workflows/release.yml)
 [![Go 1.27.1+](https://img.shields.io/badge/Go-1.27.1%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![MyGo 0.5.5](https://img.shields.io/badge/MyGo-0.5.5-ec4141)](https://github.com/egoist/mygo/tree/v0.5.5)
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4)
@@ -86,7 +87,7 @@ build/windows-amd64/
 └── MusicComments Setup 1.0.0 amd64.exe
 ```
 
-应用名称、版本号及输出目录在 `mygo.json` 中配置，安装包名称随版本变化。向 GitHub Releases 上传上述成品即可，不需要上传整个 `build` 目录。
+应用名称、版本号及输出目录在 `mygo.json` 中配置，安装包名称随版本变化。
 
 如只需要编译一个可执行文件：
 
