@@ -434,3 +434,44 @@ func TestEmojiAlignsWithText(t *testing.T) {
 		t.Fatalf("emoji center differs by %.1f px: glyph %d..%d face %d..%d", float64(delta)/2, glyphTop, glyphBottom, faceTop, faceBottom)
 	}
 }
+
+func TestRefreshButtonKeepsRedInteractionColors(t *testing.T) {
+	app := newDesktop(nil)
+	defer app.cancel()
+	tt := ui.NewTester(app.view, 800, 700)
+	button, ok := tt.Find("换一条")
+	if !ok {
+		t.Fatal("missing refresh button")
+	}
+	sample := func() [3]uint32 {
+		// Sample the solid face, away from the centered text and rounded edge.
+		r, g, b, _ := tt.Image().At(int(button.X+16), int(button.Y+button.H/2)).RGBA()
+		return [3]uint32{r >> 8, g >> 8, b >> 8}
+	}
+	normal := sample()
+	x, y := button.X+button.W/2, button.Y+button.H/2
+	tt.Move(x, y)
+	hover := sample()
+	tt.Press(x, y)
+	pressed := sample()
+	for name, color := range map[string][3]uint32{"normal": normal, "hover": hover, "pressed": pressed} {
+		if color[0] <= color[1]*2 || color[0] <= color[2]*2 {
+			t.Fatalf("%s is not red: %v", name, color)
+		}
+	}
+	if hover == normal || pressed == hover {
+		t.Fatal("interaction feedback disappeared")
+	}
+	for i := range normal {
+		delta := int(hover[i]) - int(normal[i])
+		if delta < -24 || delta > 24 {
+			t.Fatalf("abrupt hover color change: %v -> %v", normal, hover)
+		}
+	}
+	app.loading = true
+	tt.Frame()
+	disabled := sample()
+	if disabled[0] >= normal[0] {
+		t.Fatalf("disabled state did not dim: %v", disabled)
+	}
+}

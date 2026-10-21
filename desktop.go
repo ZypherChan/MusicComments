@@ -134,6 +134,8 @@ var (
 func (app *desktop) view(c *ui.Context) {
 	theme := *ui.DarkTheme()
 	theme.Accent = accent
+	theme.AccentHover = ui.Hex("#ef5050")
+	theme.AccentPressed = ui.Hex("#d93c3c")
 	theme.Font = commentFontFamily
 	theme.Text = ui.Hex("#eeeeef")
 	c.SetTheme(&theme)
