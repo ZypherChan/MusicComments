@@ -1,6 +1,6 @@
 {
   "name": "MusicComments",
   "identifier": "dev.everything.musiccomments",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "out": "build"
 }
