@@ -84,7 +84,7 @@ go tool mygo build
 ```text
 build/windows-amd64/
 ├── MusicComments.exe
-└── MusicComments Setup 1.0.0 amd64.exe
+└── MusicComments Setup 1.0.1 amd64.exe
 ```
 
 应用名称、版本号及输出目录在 `mygo.json` 中配置，安装包名称随版本变化。
