@@ -5,3 +5,4 @@ build/
 .mygo-scaffold/
 test-results/
 playwright-report/
+__pycache__/

@@ -112,6 +112,21 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Test release notes generator
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+
+      - name: Generate release notes from commits
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 .github/scripts/release_notes.py --tag "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" --output "$RUNNER_TEMP/release-notes.md"
+
       - uses: actions/download-artifact@v4
         with:
           pattern: release-*
@@ -135,7 +150,8 @@ jobs:
           fi
           if ! gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
             gh release create "$RELEASE_TAG" --verify-tag --draft \
-              --title "$RELEASE_TAG" --generate-notes
+              --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
           gh release upload "$RELEASE_TAG" release/* --clobber
-          gh release edit "$RELEASE_TAG" --draft=false --prerelease="$prerelease"
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease="$prerelease" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
