@@ -1,0 +1,7 @@
+node_modules/
+dist/
+build/
+.mygo/
+.mygo-scaffold/
+test-results/
+playwright-report/

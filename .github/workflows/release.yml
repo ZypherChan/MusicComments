@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows/amd64
+            artifact: windows-amd64
+          - os: ubuntu-latest
+            platform: linux/amd64
+            artifact: linux-amd64
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Set application version from tag
+        id: version
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:GITHUB_REF_NAME
+          $pattern = '^v?(?<version>(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?)$'
+          if ($tag -notmatch $pattern) {
+            throw "Unsupported version tag '$tag'. Use v1.2.3 or v1.2.3-rc.1."
+          }
+          $version = $Matches['version']
+          $config = Get-Content mygo.json -Raw | ConvertFrom-Json
+          $config.version = $version
+          $config | ConvertTo-Json -Depth 20 | Set-Content mygo.json -Encoding utf8NoBOM
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Test
+        run: |
+          # Native UI tests use Windows text rendering. Linux request tests
+          # need no display server or GUI runtime libraries.
+          if ($IsWindows) {
+            go test -count=1 ./...
+          } else {
+            go test -count=1 ./internal/music
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          go vet ./...
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          go tool mygo vet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build release
+        env:
+          TARGET_PLATFORM: ${{ matrix.platform }}
+        run: |
+          go tool mygo build -platform $env:TARGET_PLATFORM
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Collect release files
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:RELEASE_VERSION
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          if ($IsWindows) {
+            Copy-Item -LiteralPath 'build/windows-amd64/MusicComments.exe' `
+              -Destination "release/MusicComments-$version-windows-amd64.exe"
+            Copy-Item -LiteralPath "build/windows-amd64/MusicComments Setup $version amd64.exe" `
+              -Destination "release/MusicComments-Setup-$version-windows-amd64.exe"
+          } else {
+            # Debian sorts prereleases before the final version using '~'.
+            $debVersion = $version -replace '-', '~'
+            Copy-Item -LiteralPath "build/linux-amd64/musiccomments-$version-linux-amd64.tar.gz" -Destination release/
+            Copy-Item -LiteralPath "build/linux-amd64/musiccomments_${debVersion}_amd64.deb" -Destination release/
+            Copy-Item -LiteralPath 'build/linux-amd64/install.sh' -Destination release/
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.artifact }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+
+      - name: Generate checksums
+        working-directory: release
+        run: sha256sum -- * > SHA256SUMS.txt
+
+      - name: Publish release with all assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          prerelease=false
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            prerelease=true
+          fi
+          if ! gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft \
+              --title "$RELEASE_TAG" --generate-notes
+          fi
+          gh release upload "$RELEASE_TAG" release/* --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease="$prerelease"
