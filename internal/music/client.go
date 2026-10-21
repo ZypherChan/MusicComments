@@ -15,6 +15,8 @@ import (
 
 var categories = []string{"全部", "华语", "欧美", "日语", "韩语", "流行", "摇滚", "民谣", "电子", "说唱", "爵士", "古典", "轻音乐", "ACG", "影视原声", "怀旧", "清晨", "夜晚", "学习", "运动", "治愈", "R&B/Soul", "古风", "舞曲"}
 
+const minCommentLikes int64 = 1000
+
 type Meta struct {
 	SongID   int64  `json:"songId"`
 	SongName string `json:"songName"`
@@ -121,15 +123,7 @@ func (c *Client) Next(ctx context.Context, progress func(string)) (Result, error
 			lastErr = err
 			break
 		}
-		minLikes := int64(10000)
-		if attempt >= 3 {
-			minLikes = 1000
-			if haveBest && best.Comment.LikedCount >= minLikes {
-				c.lastSongID = best.Meta.SongID
-				return best, nil
-			}
-		}
-		r, err := c.fetchOne(searchCtx, progress, minLikes)
+		r, err := c.fetchOne(searchCtx, progress)
 		if ctx.Err() != nil {
 			return Result{}, ctx.Err()
 		}
@@ -137,7 +131,7 @@ func (c *Client) Next(ctx context.Context, progress func(string)) (Result, error
 			if !haveBest || r.Comment.LikedCount > best.Comment.LikedCount {
 				best, haveBest = r, true
 			}
-			if r.Comment.LikedCount >= minLikes {
+			if r.Comment.LikedCount >= minCommentLikes {
 				c.lastSongID = r.Meta.SongID
 				return r, nil
 			}
@@ -150,10 +144,16 @@ func (c *Client) Next(ctx context.Context, progress func(string)) (Result, error
 	}
 	return Result{}, lastErr
 }
-func (c *Client) fetchOne(ctx context.Context, progress func(string), minLikes int64) (Result, error) {
+func (c *Client) fetchOne(ctx context.Context, progress func(string)) (Result, error) {
 	cat := "怀旧"
-	if c.pick(10) >= 8 {
-		cat = categories[c.pick(len(categories))]
+	if c.pick(10) >= 5 {
+		var otherCategories []string
+		for _, category := range categories {
+			if category != "怀旧" {
+				otherCategories = append(otherCategories, category)
+			}
+		}
+		cat = otherCategories[c.pick(len(otherCategories))]
 	}
 	offset := c.pick(16) * 35
 	type playlist struct {
@@ -186,7 +186,7 @@ func (c *Client) fetchOne(ctx context.Context, progress func(string), minLikes i
 			}
 		}
 	}
-	if len(classic) > 0 && c.pick(5) < 4 {
+	if len(classic) > 0 && c.pick(10) < 5 {
 		list = classic
 	}
 	pl := list[c.pick(len(list))]
@@ -255,7 +255,7 @@ func (c *Client) fetchOne(ctx context.Context, progress func(string), minLikes i
 		if !haveBest || comment.LikedCount > best.Comment.LikedCount {
 			best, haveBest = result, true
 		}
-		if comment.LikedCount >= minLikes {
+		if comment.LikedCount >= minCommentLikes {
 			return result, nil
 		}
 	}
@@ -299,17 +299,15 @@ func (c *Client) randomComment(ctx context.Context, id int64) (Comment, error) {
 		return out
 	}
 	hot, recent := valid(d.HotComments), valid(d.Comments)
-	for _, minLikes := range []int64{10000, 1000} {
-		for _, items := range [][]Comment{hot, recent} {
-			var popular []Comment
-			for _, comment := range items {
-				if comment.LikedCount >= minLikes {
-					popular = append(popular, comment)
-				}
+	for _, items := range [][]Comment{hot, recent} {
+		var popular []Comment
+		for _, comment := range items {
+			if comment.LikedCount >= minCommentLikes {
+				popular = append(popular, comment)
 			}
-			if len(popular) > 0 {
-				return popular[c.pick(len(popular))], nil
-			}
+		}
+		if len(popular) > 0 {
+			return popular[c.pick(len(popular))], nil
 		}
 	}
 	items := append(hot, recent...)

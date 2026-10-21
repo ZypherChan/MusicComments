@@ -142,8 +142,9 @@ func TestRequestFailureAndCancellation(t *testing.T) {
 }
 
 func TestClassicPlaylistPreference(t *testing.T) {
-	for _, prefer := range []bool{true, false} {
-		t.Run(fmt.Sprint(prefer), func(t *testing.T) {
+	for roll := 0; roll < 10; roll++ {
+		prefer := roll < 5
+		t.Run(fmt.Sprint(roll), func(t *testing.T) {
 			c := fixtureClient(t, func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
 				case "/api/playlist/list":
@@ -168,16 +169,11 @@ func TestClassicPlaylistPreference(t *testing.T) {
 					fmt.Fprint(w, `{"hotComments":[{"content":"经典评论","likedCount":15000}]}`)
 				}
 			})
-			if !prefer {
-				c.pick = func(n int) int {
-					if n == 10 {
-						return 8
-					}
-					if n == 5 {
-						return 4
-					}
-					return 0
+			c.pick = func(n int) int {
+				if n == 10 {
+					return roll
 				}
+				return 0
 			}
 			if _, err := c.Next(context.Background(), nil); err != nil {
 				t.Fatal(err)
@@ -192,8 +188,9 @@ func TestCommentPopularityTiers(t *testing.T) {
 		last             bool
 	}{
 		{"ten-thousand", `{"hotComments":[{"content":"低赞","likedCount":1},{"content":"万赞甲","likedCount":10000},{"content":"万赞乙","likedCount":25000}]}`, "万赞甲", false},
-		{"random-within-tier", `{"hotComments":[{"content":"万赞甲","likedCount":10000},{"content":"万赞乙","likedCount":25000}]}`, "万赞乙", true},
-		{"recent-high-beats-hot-low", `{"hotComments":[{"content":"千赞","likedCount":2000}],"comments":[{"content":"新万赞","likedCount":12000}]}`, "新万赞", false},
+		{"thousand-not-displaced-by-ten-thousand", `{"hotComments":[{"content":"千赞","likedCount":1000},{"content":"万赞","likedCount":25000}]}`, "千赞", false},
+		{"random-within-qualifying-comments", `{"hotComments":[{"content":"千赞","likedCount":1000},{"content":"万赞","likedCount":25000}]}`, "万赞", true},
+		{"thousand-hot-is-enough", `{"hotComments":[{"content":"千赞","likedCount":2000}],"comments":[{"content":"新万赞","likedCount":12000}]}`, "千赞", false},
 		{"thousand", `{"hotComments":[{"content":"低赞","likedCount":999},{"content":"千赞","likedCount":1000}]}`, "千赞", false},
 		{"best-low-fallback", `{"hotComments":[{"content":"低赞","likedCount":1}],"comments":[{"content":"较高","likedCount":900}]}`, "较高", false},
 		{"empty-popular-ignored", `{"hotComments":[{"content":"","likedCount":99999},{"content":"有效","likedCount":1000}]}`, "有效", false},
@@ -215,13 +212,12 @@ func TestCommentPopularityTiers(t *testing.T) {
 func TestSearchPopularityFallback(t *testing.T) {
 	for _, tc := range []struct {
 		name                string
-		jackpot             bool
 		likes               int64
 		playlists, comments int
 	}{
-		{"keep-searching-for-ten-thousand", true, 20000, 3, 13},
-		{"reuse-best-thousand-after-three-rounds", false, 1500, 3, 18},
-		{"best-low-after-all-rounds", false, 900, 5, 30},
+		{"ten-thousand-is-also-accepted", 20000, 1, 1},
+		{"thousand-returns-immediately", 1000, 1, 1},
+		{"best-low-after-all-rounds", 900, 5, 30},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			playlists, comments := 0, 0
@@ -235,9 +231,6 @@ func TestSearchPopularityFallback(t *testing.T) {
 				default:
 					comments++
 					likes := tc.likes
-					if tc.jackpot && playlists < 3 {
-						likes = 1500
-					}
 					fmt.Fprintf(w, `{"hotComments":[{"content":"合成测试评论","likedCount":%d}]}`, likes)
 				}
 			})
@@ -269,7 +262,7 @@ func TestSongSamplingDoesNotRepeatOrReuseLastSong(t *testing.T) {
 		}
 	})
 	c.lastSongID = 42
-	if _, err := c.fetchOne(context.Background(), nil, 10000); err != nil {
+	if _, err := c.fetchOne(context.Background(), nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(songs) != 2 || songs[0] == songs[1] || strings.HasSuffix(songs[0], "_42") || strings.HasSuffix(songs[1], "_42") {
