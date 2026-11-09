@@ -1,5 +1,6 @@
 # 网易云随机热评
 
+[![Listed on Awesome MyGo](https://awesomemygo.dev/badge.svg)](https://awesomemygo.dev/apps/musiccomments)
 [![Release](https://github.com/ZypherChan/MusicComments/actions/workflows/release.yml/badge.svg)](https://github.com/ZypherChan/MusicComments/actions/workflows/release.yml)
 [![Go 1.27.1+](https://img.shields.io/badge/Go-1.27.1%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![MyGo 0.5.5](https://img.shields.io/badge/MyGo-0.5.5-ec4141)](https://github.com/egoist/mygo/tree/v0.5.5)
@@ -165,3 +166,7 @@ try {
 - 表情图片：网易云音乐官方 CDN，地址格式为 `https://s1.music.126.net/style/web2/emt/emoji_{ID}.png`，已保存在 `assets/emoji/` 中。
 
 上述素材的权利归原权利人所有。
+
+## 许可证
+
+本项目的原创代码和文档采用 [MIT 许可证](LICENSE)。第三方依赖遵循各自的许可证。网易云音乐图标、表情、歌曲封面、评论、用户头像等第三方内容不在本项目的 MIT 授权范围内，相关权利归各自权利人所有。素材来源见[接口与素材说明](#接口与素材说明)。
